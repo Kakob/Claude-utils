@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Custom CSS variables for theming */
+:root {
+  --color-primary: #8B5CF6;
+  --color-primary-hover: #7C3AED;
+}
+
+.dark {
+  --color-primary: #A78BFA;
+  --color-primary-hover: #8B5CF6;
+}
