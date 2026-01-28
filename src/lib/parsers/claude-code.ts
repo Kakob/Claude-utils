@@ -201,8 +201,8 @@ function extractContent(content: string | ClaudeCodeContentBlock[]): ExtractedCo
       textParts.push(block.text);
       const parsed = parseTextForCodeBlocks(block.text);
       contentBlocks.push(...parsed);
-    } else if (block.type === 'thinking' && (block as { thinking?: string }).thinking) {
-      const thinking = (block as { thinking: string }).thinking;
+    } else if (block.type === 'thinking' && block.thinking) {
+      const thinking = block.thinking;
       textParts.push(thinking);
       contentBlocks.push({
         type: 'thinking',

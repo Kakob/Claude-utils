@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   Search,
+  Clock,
   BarChart3,
   MessageSquare,
   FileText,
@@ -11,6 +12,7 @@ import { useAppStore } from '../../stores/appStore';
 
 const navItems = [
   { to: '/search', icon: Search, label: 'Search' },
+  { to: '/timeline', icon: Clock, label: 'Timeline' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/conversations', icon: MessageSquare, label: 'Browse' },
   { to: '/prompts', icon: FileText, label: 'Prompts' },

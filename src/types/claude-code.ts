@@ -47,8 +47,9 @@ export interface ClaudeCodeToolResultEntry {
 }
 
 export interface ClaudeCodeContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result';
+  type: 'text' | 'tool_use' | 'tool_result' | 'thinking';
   text?: string;
+  thinking?: string;
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   result?: string;

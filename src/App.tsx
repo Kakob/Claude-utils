@@ -3,6 +3,7 @@ import { Layout } from './components/layout';
 import {
   SearchPage,
   AnalyticsPage,
+  TimelinePage,
   ConversationsPage,
   PromptsPage,
   ImportPage,
@@ -16,6 +17,7 @@ export function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/search" replace />} />
           <Route path="search" element={<SearchPage />} />
+          <Route path="timeline" element={<TimelinePage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="conversations" element={<ConversationsPage />} />
           <Route path="conversations/:id" element={<ConversationsPage />} />

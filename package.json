@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:extension": "vite build --config vite.config.extension.ts && cp extension/manifest.json dist-extension/ && cp -r extension/icons dist-extension/ 2>/dev/null || mkdir -p dist-extension/icons",
+    "build:all": "npm run build && npm run build:extension",
+    "dev:extension": "vite build --config vite.config.extension.ts --watch",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.18",
+    "@types/chrome": "^0.1.36",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",

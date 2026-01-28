@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Utils Companion",
+  "version": "1.0.0",
+  "description": "Captures real-time Claude.ai usage for analytics and timeline views",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["https://claude.ai/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content-script.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["http://localhost:*/*", "http://127.0.0.1:*/*"],
+      "js": ["webapp-sync.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://claude.ai/*"]
+    }
+  ]
+}
