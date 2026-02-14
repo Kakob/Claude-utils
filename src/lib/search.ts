@@ -1,6 +1,6 @@
 import Fuse from 'fuse.js';
 import type { FuseResult, RangeTuple, IFuseOptions } from 'fuse.js';
-import { db } from './db';
+import { getConversations } from './db';
 import type { StoredConversation, DataSource } from '../types';
 
 export interface SearchMatch {
@@ -39,8 +39,12 @@ let indexedConversationsFree: StoredConversation[] = [];
 let totalConversationCount = 0;
 
 export async function buildSearchIndex(): Promise<void> {
-  // Get all conversations sorted by createdAt descending (newest first)
-  const conversations = await db.conversations.orderBy('createdAt').reverse().toArray();
+  // Fetch all conversations via API (sorted by updatedAt descending by default)
+  const conversations = await getConversations({ limit: 10000 });
+
+  // Sort by createdAt descending (newest first) for consistent free tier
+  conversations.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
   totalConversationCount = conversations.length;
   indexedConversations = conversations;
   fuseIndexPro = new Fuse(conversations, FUSE_OPTIONS);

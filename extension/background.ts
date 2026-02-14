@@ -1,26 +1,12 @@
 // Background service worker for the extension
-// Captures activities and syncs them to the web app's IndexedDB
+// Captures activities and sends them directly to the API
 
 import type { ExtensionMessage, CapturedResponse, DOMActivity } from './types';
 
+const API_URL = 'http://localhost:3003/api';
+
 // Conversation title cache
 const conversationTitles = new Map<string, string>();
-
-// Queue for activities that couldn't be delivered
-const pendingActivities: Array<{
-  id: string;
-  type: string;
-  source: 'extension';
-  conversationId: string | null;
-  conversationTitle: string | null;
-  model: string | null;
-  timestamp: Date;
-  tokens: { inputTokens: number; outputTokens: number; cacheCreationTokens?: number; cacheReadTokens?: number } | null;
-  metadata: Record<string, unknown>;
-}> = [];
-
-// Track ready web app tabs
-const readyTabs = new Set<number>();
 
 // Generate unique ID
 function generateId(): string {
@@ -39,80 +25,50 @@ type ActivityPayload = {
   metadata: Record<string, unknown>;
 };
 
-// Find web app tabs and sync activity to them
-async function syncActivityToWebApp(activity: ActivityPayload): Promise<void> {
-  console.log('[Claude Utils] Syncing activity to web app:', activity);
+// Send activity directly to the API
+async function syncActivity(activity: ActivityPayload): Promise<void> {
+  console.log('[Claude Utils] Sending activity to API:', activity.type, activity.id);
 
   try {
-    // Find all localhost tabs (where the web app runs)
+    const response = await fetch(`${API_URL}/activities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...activity,
+        timestamp: activity.timestamp.toISOString(),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    console.log('[Claude Utils] Activity stored:', activity.type, activity.id);
+
+    // Notify any open web app tabs for live UI updates
+    notifyWebAppTabs(activity);
+  } catch (error) {
+    console.error('[Claude Utils] Error sending activity to API:', error);
+  }
+}
+
+// Best-effort notify open web app tabs for live UI refresh
+async function notifyWebAppTabs(activity: ActivityPayload): Promise<void> {
+  try {
     const tabs = await chrome.tabs.query({
       url: ['http://localhost:*/*', 'http://127.0.0.1:*/*'],
     });
 
-    if (tabs.length === 0) {
-      console.log('[Claude Utils] No web app tabs found, queuing activity');
-      pendingActivities.push(activity);
-      return;
-    }
-
-    let delivered = false;
-
-    // Send to all matching tabs that are ready
     for (const tab of tabs) {
-      if (tab.id && readyTabs.has(tab.id)) {
-        try {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: 'SYNC_ACTIVITY',
-            activity: {
-              ...activity,
-              timestamp: activity.timestamp.toISOString(),
-            },
-          });
-          console.log('[Claude Utils] Activity sent to tab:', tab.id);
-          delivered = true;
-        } catch (error) {
-          // Tab might have been closed or refreshed
-          console.log('[Claude Utils] Could not send to tab:', tab.id, error);
-          readyTabs.delete(tab.id);
-        }
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'ACTIVITY_STORED',
+          activity: { ...activity, timestamp: activity.timestamp.toISOString() },
+        }).catch(() => { /* tab not listening, that's fine */ });
       }
     }
-
-    // If no ready tabs, queue the activity
-    if (!delivered) {
-      console.log('[Claude Utils] No ready tabs, queuing activity');
-      pendingActivities.push(activity);
-    }
-  } catch (error) {
-    console.error('[Claude Utils] Error syncing activity:', error);
-    pendingActivities.push(activity);
-  }
-}
-
-// Flush pending activities to a newly ready tab
-async function flushPendingActivities(tabId: number): Promise<void> {
-  if (pendingActivities.length === 0) return;
-
-  console.log('[Claude Utils] Flushing', pendingActivities.length, 'pending activities to tab:', tabId);
-
-  const toFlush = [...pendingActivities];
-  pendingActivities.length = 0;
-
-  for (const activity of toFlush) {
-    try {
-      await chrome.tabs.sendMessage(tabId, {
-        type: 'SYNC_ACTIVITY',
-        activity: {
-          ...activity,
-          timestamp: activity.timestamp.toISOString(),
-        },
-      });
-      console.log('[Claude Utils] Flushed activity:', activity.id);
-    } catch (error) {
-      console.log('[Claude Utils] Failed to flush activity:', activity.id, error);
-      // Put it back in queue
-      pendingActivities.push(activity);
-    }
+  } catch {
+    // No tabs open, that's fine
   }
 }
 
@@ -144,7 +100,7 @@ function processResponse(data: CapturedResponse): void {
     },
   };
 
-  syncActivityToWebApp(activity);
+  syncActivity(activity);
 }
 
 // Process DOM activity
@@ -192,7 +148,7 @@ function processDOMActivity(data: DOMActivity): void {
     metadata,
   };
 
-  syncActivityToWebApp(activity);
+  syncActivity(activity);
 }
 
 // Track current conversation
@@ -203,18 +159,8 @@ function getCurrentConversationId(): string | null {
 }
 
 // Handle messages from content script
-chrome.runtime.onMessage.addListener((message: ExtensionMessage | { type: 'WEBAPP_READY' }, sender) => {
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender) => {
   console.log('[Claude Utils] Background received message:', message.type);
-
-  // Handle web app ready signal
-  if (message.type === 'WEBAPP_READY') {
-    if (sender.tab?.id) {
-      console.log('[Claude Utils] Web app tab ready:', sender.tab.id);
-      readyTabs.add(sender.tab.id);
-      flushPendingActivities(sender.tab.id);
-    }
-    return;
-  }
 
   // Extract conversation ID from tab URL
   if (sender.tab?.url) {
@@ -235,11 +181,6 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage | { type: 'WEBAP
       conversationTitles.set(message.data.conversationId, message.data.title);
       break;
   }
-});
-
-// Clean up closed tabs
-chrome.tabs.onRemoved.addListener((tabId) => {
-  readyTabs.delete(tabId);
 });
 
 console.log('[Claude Utils] Background service worker initialized');

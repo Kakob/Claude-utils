@@ -5,14 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\"",
     "build": "tsc -b && vite build",
+    "build:backend": "cd backend && npm run build",
     "build:extension": "vite build --config vite.config.extension.ts && cp extension/manifest.json dist-extension/ && cp -r extension/icons dist-extension/ 2>/dev/null || mkdir -p dist-extension/icons",
-    "build:all": "npm run build && npm run build:extension",
+    "build:all": "npm run build && npm run build:extension && npm run build:backend",
     "dev:extension": "vite build --config vite.config.extension.ts --watch",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "db:push": "cd backend && npm run db:push",
+    "db:studio": "cd backend && npm run db:studio"
   },
   "dependencies": {
     "dexie": "^4.2.1",
@@ -35,6 +43,7 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

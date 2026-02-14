@@ -1,6 +1,6 @@
-import { db } from './db';
+import { api } from './api';
 import { parseFiles, type ParsedData } from './parsers';
-import type { StoredConversation, StoredMessage, DataSource } from '../types';
+import type { DataSource } from '../types';
 
 export interface ImportResult {
   conversationsAdded: number;
@@ -30,7 +30,7 @@ export async function importFiles(
     });
   });
 
-  // Phase 2: Store in database
+  // Phase 2: Store via API
   onProgress?.({
     phase: 'storing',
     current: 0,
@@ -58,58 +58,66 @@ async function storeData(
   data: ParsedData,
   onProgress?: (current: number, total: number) => void
 ): Promise<ImportResult> {
-  let conversationsAdded = 0;
-  let conversationsSkipped = 0;
-  let messagesAdded = 0;
+  // Convert conversations to API format
+  const conversations = data.conversations.map((conv) => ({
+    id: conv.id,
+    source: conv.source,
+    name: conv.name,
+    summary: conv.summary,
+    createdAt: conv.createdAt.toISOString(),
+    updatedAt: conv.updatedAt.toISOString(),
+    importedAt: conv.importedAt.toISOString(),
+    messageCount: conv.messageCount,
+    userMessageCount: conv.userMessageCount,
+    assistantMessageCount: conv.assistantMessageCount,
+    estimatedTokens: conv.estimatedTokens,
+    fullText: conv.fullText,
+    projectPath: conv.projectPath,
+    gitBranch: conv.gitBranch,
+    workingDirectory: conv.workingDirectory,
+  }));
 
-  // Get existing conversation IDs to detect duplicates
-  const existingIds = new Set(
-    await db.conversations.toCollection().primaryKeys()
-  );
+  // Convert messages to API format
+  const messages = data.messages.map((msg) => ({
+    id: msg.id,
+    conversationId: msg.conversationId,
+    sender: msg.sender,
+    text: msg.text,
+    contentBlocks: msg.contentBlocks,
+    createdAt: msg.createdAt.toISOString(),
+    toolName: msg.toolName,
+    toolInput: msg.toolInput,
+    toolResult: msg.toolResult,
+  }));
 
-  // Filter out duplicates
-  const newConversations: StoredConversation[] = [];
-  const newMessages: StoredMessage[] = [];
+  // Send to API in chunks for large imports
+  const CHUNK_SIZE = 500;
+  let totalAdded = 0;
+  let totalSkipped = 0;
+  let totalMessages = 0;
 
-  for (const conv of data.conversations) {
-    if (existingIds.has(conv.id)) {
-      conversationsSkipped++;
-    } else {
-      newConversations.push(conv);
-      // Get messages for this conversation
-      const convMessages = data.messages.filter(
-        (m) => m.conversationId === conv.id
-      );
-      newMessages.push(...convMessages);
-    }
+  for (let i = 0; i < conversations.length; i += CHUNK_SIZE) {
+    const convChunk = conversations.slice(i, i + CHUNK_SIZE);
+    const convIds = new Set(convChunk.map((c) => c.id));
+    const msgChunk = messages.filter((m) => convIds.has(m.conversationId));
+
+    const result = await api.importData({
+      conversations: convChunk,
+      messages: msgChunk,
+      source: data.source,
+    });
+
+    totalAdded += result.conversationsAdded;
+    totalSkipped += result.conversationsSkipped;
+    totalMessages += result.messagesAdded;
+
+    onProgress?.(Math.min(i + CHUNK_SIZE, conversations.length), conversations.length);
   }
-
-  // Batch insert in chunks
-  const CHUNK_SIZE = 100;
-
-  for (let i = 0; i < newConversations.length; i += CHUNK_SIZE) {
-    const convChunk = newConversations.slice(i, i + CHUNK_SIZE);
-    await db.conversations.bulkAdd(convChunk);
-    conversationsAdded += convChunk.length;
-    onProgress?.(Math.min(i + CHUNK_SIZE, newConversations.length), newConversations.length);
-  }
-
-  for (let i = 0; i < newMessages.length; i += CHUNK_SIZE) {
-    const msgChunk = newMessages.slice(i, i + CHUNK_SIZE);
-    await db.messages.bulkAdd(msgChunk);
-    messagesAdded += msgChunk.length;
-  }
-
-  // Update last sync metadata
-  await db.metadata.put({
-    key: `lastSync.${data.source}`,
-    value: new Date().toISOString(),
-  });
 
   return {
-    conversationsAdded,
-    conversationsSkipped,
-    messagesAdded,
+    conversationsAdded: totalAdded,
+    conversationsSkipped: totalSkipped,
+    messagesAdded: totalMessages,
     source: data.source,
   };
 }

@@ -1,67 +1,43 @@
+const API_URL = "http://localhost:3003/api";
 const conversationTitles = /* @__PURE__ */ new Map();
-const pendingActivities = [];
-const readyTabs = /* @__PURE__ */ new Set();
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
-async function syncActivityToWebApp(activity) {
-  console.log("[Claude Utils] Syncing activity to web app:", activity);
+async function syncActivity(activity) {
+  console.log("[Claude Utils] Sending activity to API:", activity.type, activity.id);
+  try {
+    const response = await fetch(`${API_URL}/activities`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...activity,
+        timestamp: activity.timestamp.toISOString()
+      })
+    });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    console.log("[Claude Utils] Activity stored:", activity.type, activity.id);
+    notifyWebAppTabs(activity);
+  } catch (error) {
+    console.error("[Claude Utils] Error sending activity to API:", error);
+  }
+}
+async function notifyWebAppTabs(activity) {
   try {
     const tabs = await chrome.tabs.query({
       url: ["http://localhost:*/*", "http://127.0.0.1:*/*"]
     });
-    if (tabs.length === 0) {
-      console.log("[Claude Utils] No web app tabs found, queuing activity");
-      pendingActivities.push(activity);
-      return;
-    }
-    let delivered = false;
     for (const tab of tabs) {
-      if (tab.id && readyTabs.has(tab.id)) {
-        try {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: "SYNC_ACTIVITY",
-            activity: {
-              ...activity,
-              timestamp: activity.timestamp.toISOString()
-            }
-          });
-          console.log("[Claude Utils] Activity sent to tab:", tab.id);
-          delivered = true;
-        } catch (error) {
-          console.log("[Claude Utils] Could not send to tab:", tab.id, error);
-          readyTabs.delete(tab.id);
-        }
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: "ACTIVITY_STORED",
+          activity: { ...activity, timestamp: activity.timestamp.toISOString() }
+        }).catch(() => {
+        });
       }
     }
-    if (!delivered) {
-      console.log("[Claude Utils] No ready tabs, queuing activity");
-      pendingActivities.push(activity);
-    }
-  } catch (error) {
-    console.error("[Claude Utils] Error syncing activity:", error);
-    pendingActivities.push(activity);
-  }
-}
-async function flushPendingActivities(tabId) {
-  if (pendingActivities.length === 0) return;
-  console.log("[Claude Utils] Flushing", pendingActivities.length, "pending activities to tab:", tabId);
-  const toFlush = [...pendingActivities];
-  pendingActivities.length = 0;
-  for (const activity of toFlush) {
-    try {
-      await chrome.tabs.sendMessage(tabId, {
-        type: "SYNC_ACTIVITY",
-        activity: {
-          ...activity,
-          timestamp: activity.timestamp.toISOString()
-        }
-      });
-      console.log("[Claude Utils] Flushed activity:", activity.id);
-    } catch (error) {
-      console.log("[Claude Utils] Failed to flush activity:", activity.id, error);
-      pendingActivities.push(activity);
-    }
+  } catch {
   }
 }
 function processResponse(data) {
@@ -85,7 +61,7 @@ function processResponse(data) {
       userMessage: data.userMessage
     }
   };
-  syncActivityToWebApp(activity);
+  syncActivity(activity);
 }
 function processDOMActivity(data) {
   const conversationId = getCurrentConversationId();
@@ -125,7 +101,7 @@ function processDOMActivity(data) {
     tokens: null,
     metadata
   };
-  syncActivityToWebApp(activity);
+  syncActivity(activity);
 }
 let currentConversationId = null;
 function getCurrentConversationId() {
@@ -133,14 +109,6 @@ function getCurrentConversationId() {
 }
 chrome.runtime.onMessage.addListener((message, sender) => {
   console.log("[Claude Utils] Background received message:", message.type);
-  if (message.type === "WEBAPP_READY") {
-    if (sender.tab?.id) {
-      console.log("[Claude Utils] Web app tab ready:", sender.tab.id);
-      readyTabs.add(sender.tab.id);
-      flushPendingActivities(sender.tab.id);
-    }
-    return;
-  }
   if (sender.tab?.url) {
     const match = sender.tab.url.match(/\/chat\/([^/?]+)/);
     if (match) {
@@ -158,9 +126,6 @@ chrome.runtime.onMessage.addListener((message, sender) => {
       conversationTitles.set(message.data.conversationId, message.data.title);
       break;
   }
-});
-chrome.tabs.onRemoved.addListener((tabId) => {
-  readyTabs.delete(tabId);
 });
 console.log("[Claude Utils] Background service worker initialized");
 //# sourceMappingURL=background.js.map

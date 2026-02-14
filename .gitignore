@@ -10,7 +10,12 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-extension
 *.local
+
+# Backend
+backend/dist
+backend/node_modules
 
 # Environment files (keep .env.example)
 .env
