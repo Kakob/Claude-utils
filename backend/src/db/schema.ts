@@ -161,6 +161,26 @@ export const prompts = pgTable(
   ]
 );
 
+// Bookmarks table
+export const bookmarks = pgTable(
+  'bookmarks',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('bookmarks_conversation_id_idx').on(table.conversationId),
+    uniqueIndex('bookmarks_message_unique_idx').on(table.messageId),
+  ]
+);
+
 // Tags table (shared across prompts, conversations, anchors, threads)
 export const tags = pgTable(
   'tags',
@@ -168,7 +188,7 @@ export const tags = pgTable(
     id: text('id').primaryKey(),
     name: text('name').notNull().unique(),
     color: text('color'), // hex color e.g. '#7c3aed'
-    category: varchar('category', { length: 20 }).$type<'prompt' | 'conversation' | 'anchor' | 'thread'>(),
+    category: varchar('category', { length: 20 }).$type<'prompt' | 'conversation' | 'anchor' | 'thread' | 'bookmark'>(),
     usageCount: integer('usage_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -189,7 +209,7 @@ export const entityTags = pgTable(
     entityId: text('entity_id').notNull(),
     entityType: varchar('entity_type', { length: 20 })
       .notNull()
-      .$type<'prompt' | 'conversation' | 'anchor' | 'thread'>(),
+      .$type<'prompt' | 'conversation' | 'anchor' | 'thread' | 'bookmark'>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -211,6 +231,8 @@ export type NewDailyStat = typeof dailyStats.$inferInsert;
 export type Metadata = typeof metadata.$inferSelect;
 export type Prompt = typeof prompts.$inferSelect;
 export type NewPrompt = typeof prompts.$inferInsert;
+export type Bookmark = typeof bookmarks.$inferSelect;
+export type NewBookmark = typeof bookmarks.$inferInsert;
 export type Tag = typeof tags.$inferSelect;
 export type NewTag = typeof tags.$inferInsert;
 export type EntityTag = typeof entityTags.$inferSelect;

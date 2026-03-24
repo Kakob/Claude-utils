@@ -8,6 +8,8 @@ import { metadataRoutes } from './routes/metadata.js';
 import { importRoutes } from './routes/import.js';
 import { countsRoutes } from './routes/counts.js';
 import { tagRoutes } from './routes/tags.js';
+import { promptRoutes } from './routes/prompts.js';
+import { bookmarkRoutes } from './routes/bookmarks.js';
 
 const fastify = Fastify({
   logger: true,
@@ -34,6 +36,8 @@ fastify.register(metadataRoutes, { prefix: '/api/metadata' });
 fastify.register(importRoutes, { prefix: '/api/import' });
 fastify.register(countsRoutes, { prefix: '/api/counts' });
 fastify.register(tagRoutes, { prefix: '/api/tags' });
+fastify.register(promptRoutes, { prefix: '/api/prompts' });
+fastify.register(bookmarkRoutes, { prefix: '/api/bookmarks' });
 
 // Start server
 const port = parseInt(process.env.PORT || '3003', 10);

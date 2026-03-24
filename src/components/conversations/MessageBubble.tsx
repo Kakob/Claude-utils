@@ -1,16 +1,31 @@
-import { User, Bot, Wrench } from 'lucide-react';
+import { User, Bot, Wrench, Bookmark, BookmarkCheck } from 'lucide-react';
 import { HighlightedText } from '../search/HighlightedText';
 import { ContentBlocks } from './ContentBlocks';
+import { useBookmarkStore } from '../../stores/bookmarkStore';
 import type { StoredMessage } from '../../types';
 
 interface MessageBubbleProps {
   message: StoredMessage;
   highlightQuery?: string;
+  conversationId?: string;
 }
 
-export function MessageBubble({ message, highlightQuery }: MessageBubbleProps) {
+export function MessageBubble({ message, highlightQuery, conversationId }: MessageBubbleProps) {
   const isUser = message.sender === 'user';
   const isTool = message.sender === 'tool';
+  const { isMessageBookmarked, getBookmarkIdForMessage, createBookmark, deleteBookmark } = useBookmarkStore();
+  const bookmarked = isMessageBookmarked(message.id);
+  const bookmarkId = getBookmarkIdForMessage(message.id);
+
+  const handleToggleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!conversationId) return;
+    if (bookmarked && bookmarkId) {
+      await deleteBookmark(bookmarkId, message.id);
+    } else {
+      await createBookmark({ conversationId, messageId: message.id });
+    }
+  };
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -73,7 +88,10 @@ export function MessageBubble({ message, highlightQuery }: MessageBubbleProps) {
   }
 
   return (
-    <div className={`flex gap-3 py-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div
+      id={`message-${message.id}`}
+      className={`group/msg flex gap-3 py-3 ${isUser ? 'flex-row-reverse' : ''}`}
+    >
       <div
         className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
           isUser
@@ -101,6 +119,19 @@ export function MessageBubble({ message, highlightQuery }: MessageBubbleProps) {
           <span className="text-xs text-gray-400">
             {formatTime(message.createdAt)}
           </span>
+          {conversationId && (
+            <button
+              onClick={handleToggleBookmark}
+              className={`p-0.5 rounded transition-all ${
+                bookmarked
+                  ? 'text-violet-500'
+                  : 'text-gray-300 dark:text-gray-600 opacity-0 group-hover/msg:opacity-100 hover:text-violet-500'
+              }`}
+              title={bookmarked ? 'Remove bookmark' : 'Bookmark message'}
+            >
+              {bookmarked ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+            </button>
+          )}
         </div>
 
         <div

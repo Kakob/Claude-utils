@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react';
 import { ConversationCard } from './ConversationCard';
 import type { StoredConversation } from '../../types';
+import type { ApiTag } from '../../lib/api';
 
 interface ConversationListProps {
   conversations: StoredConversation[];
@@ -9,6 +10,11 @@ interface ConversationListProps {
   isLoading?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  conversationTags?: Map<string, ApiTag[]>;
+  onTagClick?: (tagId: string) => void;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 export function ConversationList({
@@ -18,6 +24,11 @@ export function ConversationList({
   isLoading = false,
   hasMore = false,
   onLoadMore,
+  conversationTags,
+  onTagClick,
+  selectable = false,
+  selectedIds,
+  onToggleSelect,
 }: ConversationListProps) {
   return (
     <div className="space-y-3">
@@ -27,6 +38,11 @@ export function ConversationList({
           conversation={conversation}
           isSelected={selectedId === conversation.id}
           onClick={() => onSelect(conversation)}
+          tags={conversationTags?.get(conversation.id)}
+          onTagClick={onTagClick}
+          selectable={selectable}
+          selected={selectedIds?.has(conversation.id)}
+          onToggleSelect={() => onToggleSelect?.(conversation.id)}
         />
       ))}
 

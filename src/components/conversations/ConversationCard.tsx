@@ -1,16 +1,29 @@
 import { Globe, Terminal, MessageSquare, Calendar } from 'lucide-react';
+import { TagBadge } from '../common/TagBadge';
 import type { StoredConversation } from '../../types';
+import type { ApiTag } from '../../lib/api';
 
 interface ConversationCardProps {
   conversation: StoredConversation;
   isSelected?: boolean;
   onClick?: () => void;
+  tags?: ApiTag[];
+  onTagClick?: (tagId: string) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+  bookmarkCount?: number;
 }
 
 export function ConversationCard({
   conversation,
   isSelected = false,
   onClick,
+  tags,
+  onTagClick,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: ConversationCardProps) {
   const formatDate = (date: Date) => {
     const now = new Date();
@@ -44,6 +57,18 @@ export function ConversationCard({
       `}
     >
       <div className="flex items-start justify-between gap-3">
+        {selectable && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.();
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 shrink-0 accent-violet-600"
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             {conversation.source === 'claude.ai' ? (
@@ -77,6 +102,28 @@ export function ConversationCard({
               </span>
             )}
           </div>
+
+          {tags && tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {tags.slice(0, 5).map((tag) => (
+                <span
+                  key={tag.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTagClick?.(tag.id);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <TagBadge name={tag.name} color={tag.color} />
+                </span>
+              ))}
+              {tags.length > 5 && (
+                <span className="text-xs text-gray-400 self-center">
+                  +{tags.length - 5} more
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

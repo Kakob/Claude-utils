@@ -1,9 +1,16 @@
-import { ArrowLeft, Download, Copy, Globe, Terminal, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Download, Copy, Globe, Terminal, X, Tag } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
+import { TagBadge } from '../common/TagBadge';
+import { TagInput } from '../common/TagInput';
+import { useTagStore } from '../../stores/tagStore';
+import { useBookmarkStore } from '../../stores/bookmarkStore';
 import { conversationToMarkdown } from '../../lib/exporters/markdown';
 import { buildJson } from '../../lib/exporters/json';
 import { downloadExport, type ExportFormat } from '../../lib/exporters';
 import type { StoredConversation, StoredMessage } from '../../types';
+import type { ApiTag } from '../../lib/api';
 
 interface ConversationViewProps {
   conversation: StoredConversation;
@@ -18,6 +25,42 @@ export function ConversationView({
   onBack,
   highlightQuery,
 }: ConversationViewProps) {
+  const [searchParams] = useSearchParams();
+  const scrollTo = searchParams.get('scrollTo');
+  const [conversationTags, setConversationTags] = useState<ApiTag[]>([]);
+  const [showTagInput, setShowTagInput] = useState(false);
+  const { tagEntity, untagEntity, getEntityTags } = useTagStore();
+  const { loadConversationBookmarks } = useBookmarkStore();
+
+  useEffect(() => {
+    getEntityTags('conversation', conversation.id).then(setConversationTags);
+    loadConversationBookmarks(conversation.id);
+  }, [conversation.id, getEntityTags, loadConversationBookmarks]);
+
+  // Scroll to bookmarked message if scrollTo param is present
+  useEffect(() => {
+    if (!scrollTo || messages.length === 0) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`message-${scrollTo}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-violet-400', 'rounded-lg');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-violet-400', 'rounded-lg'), 3000);
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [scrollTo, messages]);
+
+  const handleTagAdd = async (tag: ApiTag) => {
+    await tagEntity(tag.id, conversation.id, 'conversation');
+    setConversationTags((prev) => [...prev, tag]);
+  };
+
+  const handleTagRemove = async (tagId: string) => {
+    await untagEntity(tagId, conversation.id, 'conversation');
+    setConversationTags((prev) => prev.filter((t) => t.id !== tagId));
+  };
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -50,11 +93,9 @@ export function ConversationView({
   };
 
   const handleClearHighlight = () => {
-    // Remove highlight query param from URL
     const url = new URL(window.location.href);
     url.searchParams.delete('highlight');
     window.history.replaceState({}, '', url.toString());
-    // Force re-render by navigating
     window.location.replace(url.toString());
   };
 
@@ -83,6 +124,37 @@ export function ConversationView({
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {formatDate(conversation.createdAt)} · {conversation.messageCount} messages
           </p>
+
+          {/* Tags */}
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {conversationTags.map((tag) => (
+              <TagBadge
+                key={tag.id}
+                name={tag.name}
+                color={tag.color}
+                onRemove={() => handleTagRemove(tag.id)}
+              />
+            ))}
+            {showTagInput ? (
+              <div className="w-56">
+                <TagInput
+                  selectedTags={conversationTags}
+                  onTagAdd={handleTagAdd}
+                  onTagRemove={handleTagRemove}
+                  entityType="conversation"
+                  placeholder="Add tag..."
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowTagInput(true)}
+                className="flex items-center gap-1 px-2 py-0.5 text-xs text-gray-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-full transition-colors"
+              >
+                <Tag size={10} />
+                Add tag
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -142,6 +214,7 @@ export function ConversationView({
               key={message.id}
               message={message}
               highlightQuery={highlightQuery}
+              conversationId={conversation.id}
             />
           ))}
         </div>

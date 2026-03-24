@@ -4,6 +4,7 @@ import {
   Clock,
   BarChart3,
   MessageSquare,
+  Bookmark,
   FileText,
   Upload,
   Settings,
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/timeline', icon: Clock, label: 'Timeline' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/conversations', icon: MessageSquare, label: 'Browse' },
+  { to: '/bookmarks', icon: Bookmark, label: 'Bookmarks' },
   { to: '/prompts', icon: FileText, label: 'Prompts' },
   { to: '/import', icon: Upload, label: 'Import' },
 ];
